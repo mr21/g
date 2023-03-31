@@ -9,6 +9,7 @@ body {
 	justify-content: center;
 	margin: 0;
 	background-color: #444;
+	user-select: none;
 }
 
 #app {

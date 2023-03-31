@@ -10,14 +10,9 @@
 
 <div id="app" data-status="loading">
 	<div id="app-sideMenu">
-		<div class="app-sideMenu-row">
-			<span>kills</span>
-			<code id="app-stats-kills">0</code>
-		</div>
-		<div class="app-sideMenu-row">
-			<span>time</span>
-			<code id="app-stats-time">0</code>
-		</div>
+		<div class="app-sideMenu-row"><span>time</span><code id="app-stats-time">0</code></div>
+		<div class="app-sideMenu-row"><span>waves</span><code id="app-stats-waves">0</code></div>
+		<div class="app-sideMenu-row"><span>kills</span><code id="app-stats-kills">0</code></div>
 	</div>
 	<div id="app-canvasWrap">
 		<canvas id="app-canvas"></canvas>
@@ -34,21 +29,23 @@ const app = document.querySelector( "#app" );
 const cnv = document.querySelector( "#app-canvas" );
 const startBtn = document.querySelector( "#app-startBtn" );
 const nbKills = document.querySelector( "#app-stats-kills" );
+const nbWaves = document.querySelector( "#app-stats-waves" );
 const time = document.querySelector( "#app-stats-time" );
-
-app.dataset.status = "ready";
-GM.$init( cnv );
-GM.$resolution( 620, 620 );
-GM.$onkill = n => nbKills.textContent = n;
-GM.$ontime = t => time.textContent = t | 0;
-GM.$ongameover = () => {
-	app.dataset.status = "ready";
-};
 
 startBtn.onclick = () => {
 	app.dataset.status = "playing";
 	GM.$start();
 };
+
+GM.$onkill = n => nbKills.textContent = n;
+GM.$onwave = n => nbWaves.textContent = n;
+GM.$ontime = t => time.textContent = t | 0;
+GM.$ongameover = () => app.dataset.status = "ready";
+
+GM.$init( cnv, 620, 620 )
+	.then( () => {
+		app.dataset.status = "ready";
+	} );
 
 </script>
 </body>

@@ -13,10 +13,18 @@ class GM {
 	static #mouseRadian = 0;
 
 	// .........................................................................
+	static #audioCtx = null;
+	static #buffers = {
+		zombieKilled: null,
+		bulletShot: null,
+	};
+
+	// .........................................................................
 	static $ontime = () => {};
 	static $onkill = () => {};
 	static $ongameover = () => {};
 	static #nbKills = 0;
+	static #currWave = 0;
 
 	// .........................................................................
 	static #turretRadius = 16;
@@ -32,22 +40,36 @@ class GM {
 	static #zombies = [];
 	static #zombieSpeed = 50;
 	static #zombieRadius = 16;
-	static #zombiesPerWave = 40;
-	static #zombiesLastWave = 0;
-	static #zombiesWaveDelay = 5;
+	static #zombiesPerWave = 0;
+	static #zombiesPerWaveInit = 10;
 
 	// .........................................................................
-	static $init( cnv ) {
-		GM.#cnv = cnv;
-		GM.#ctx = cnv.getContext( "2d" );
-		cnv.onpointermove = GM.#onpointermove;
-		cnv.onpointerdown = GM.#onpointerdown;
-		cnv.onpointerup = GM.#onpointerup;
-		cnv.oncontextmenu = () => false;
+	static $init( cnv, w, h ) {
+		return new Promise( res => {
+			GM.#cnv = cnv;
+			GM.#cnv.width = GM.#w = w;
+			GM.#cnv.height = GM.#h = h;
+			GM.#ctx = cnv.getContext( "2d" );
+			cnv.onpointermove = GM.#onpointermove;
+			cnv.onpointerdown = GM.#onpointerdown;
+			cnv.onpointerup = GM.#onpointerup;
+			cnv.oncontextmenu = () => false;
+			GM.#audioCtx = new AudioContext();
+			Promise.all( [
+				GM.#loadBuffer( "killed.wav" ),
+				GM.#loadBuffer( "laser-shot.wav" ),
+			] ).then( buffers => {
+				GM.#buffers.zombieKilled = buffers[ 0 ];
+				GM.#buffers.bulletShot = buffers[ 1 ];
+				res();
+			} );
+		} );
 	}
 	static $start() {
 		GM.$ontime( 0 );
+		GM.$onwave( GM.#currWave = 0 );
 		GM.$onkill( GM.#nbKills = 0 );
+		GM.#zombiesPerWave = GM.#zombiesPerWaveInit;
 		GM.#zombies = [];
 		GM.#bullets = [];
 		GM.#time =
@@ -57,10 +79,6 @@ class GM {
 	}
 	static $stop() {
 		GM.#continue = false;
-	}
-	static $resolution( w, h ) {
-		GM.#cnv.width = GM.#w = w;
-		GM.#cnv.height = GM.#h = h;
 	}
 
 	// .........................................................................
@@ -78,6 +96,20 @@ class GM {
 			GM.#cnv.releasePointerCapture( e.pointerId );
 			GM.#mouseLeft = false;
 		}
+	}
+
+	// .........................................................................
+	static #loadBuffer( url ) {
+		return fetch( url )
+			.then( res => res.arrayBuffer() )
+			.then( arr => GM.#audioCtx.decodeAudioData( arr ) );
+	}
+	static #playSound( snd ) {
+		const absn = GM.#audioCtx.createBufferSource();
+
+		absn.buffer = GM.#buffers[ snd ];
+		absn.connect( GM.#audioCtx.destination );
+		absn.start();
 	}
 
 	// .........................................................................
@@ -118,6 +150,7 @@ class GM {
 				rad: GM.#mouseRadian,
 				time: GM.#time,
 			} );
+			GM.#playSound( "bulletShot" );
 		}
 	}
 	static #updateBullets() {
@@ -134,6 +167,7 @@ class GM {
 
 				if ( coll ) {
 					z.hp = 0;
+					GM.#playSound( "zombieKilled" );
 				}
 				return coll;
 			} );
@@ -141,19 +175,6 @@ class GM {
 		} );
 	}
 	static #updateZombies() {
-		if ( GM.#time - GM.#zombiesLastWave >= GM.#zombiesWaveDelay ) {
-			GM.#zombiesLastWave = GM.#time;
-			for ( let i = 0; i < GM.#zombiesPerWave; ++i ) {
-				const rad = Math.random() * 2 * Math.PI;
-				const dist = Math.random() * 300;
-
-				GM.#zombies.push( {
-					x: Math.sin( rad ) * ( 400 + dist ),
-					y: Math.cos( rad ) * ( 400 + dist ),
-					hp: 100,
-				} );
-			}
-		}
 		GM.#zombies = GM.#zombies.filter( z => {
 			if ( z.hp <= 0 ) {
 				GM.$onkill( ++GM.#nbKills );
@@ -169,6 +190,23 @@ class GM {
 			}
 			return z.hp > 0;
 		} );
+		if ( GM.#zombies.length === 0 ) {
+			GM.#newWaveZombies();
+		}
+	}
+	static #newWaveZombies() {
+		for ( let i = 0; i < GM.#zombiesPerWave; ++i ) {
+			const rad = Math.random() * 2 * Math.PI;
+			const dist = Math.random() * 300;
+
+			GM.#zombies.push( {
+				x: Math.sin( rad ) * ( 400 + dist ),
+				y: Math.cos( rad ) * ( 400 + dist ),
+				hp: 100,
+			} );
+		}
+		GM.#zombiesPerWave *= 1.25;
+		GM.$onwave( ++GM.#currWave );
 	}
 
 	// .........................................................................
