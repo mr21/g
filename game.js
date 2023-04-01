@@ -142,10 +142,10 @@ class GM {
 
 	// .........................................................................
 	static #update() {
-		GM.#updateZombies();
 		GM.#updateTurretShot();
 		GM.#updateBullets();
 		GM.#collisionBullets();
+		GM.#updateZombies();
 	}
 	static #updateTurretShot() {
 		if ( GM.#mouseLeft && GM.#time - GM.#turretLastShot >= GM.#turretReloadTime ) {
@@ -169,10 +169,11 @@ class GM {
 	static #collisionBullets() {
 		GM.#bullets = GM.#bullets.filter( b => {
 			const z = GM.#zombies.find( z => {
-				const coll = Math.abs( b.x - z.x ) ** 2 + Math.abs( b.y - z.y ) ** 2 <= GM.#zombieRadius ** 2;
+				const dist = Math.abs( b.x - z.x ) ** 2 + Math.abs( b.y - z.y ) ** 2;
+				const coll = dist <= ( GM.#zombieRadius * z.hpMax / 100 ) ** 2;
 
 				if ( coll ) {
-					z.hp = 0;
+					z.hp -= 25;
 					GM.#playSound( "zombieKilled" );
 				}
 				return coll;
@@ -204,11 +205,13 @@ class GM {
 		for ( let i = 0; i < GM.#zombiesPerWave; ++i ) {
 			const rad = Math.random() * 2 * Math.PI;
 			const dist = Math.random() * 300;
+			const hpMax = 25 + Math.random() * 200;
 
 			GM.#zombies.push( {
 				x: Math.sin( rad ) * ( 400 + dist ),
 				y: Math.cos( rad ) * ( 400 + dist ),
-				hp: 100,
+				hp: hpMax,
+				hpMax,
 			} );
 		}
 		GM.#zombiesPerWave *= 1.25;
@@ -249,9 +252,18 @@ class GM {
 		GM.#ctx.fillStyle =
 		GM.#ctx.strokeStyle = "green";
 		GM.#zombies.forEach( z => {
+			const r = GM.#zombieRadius * ( z.hpMax / 100 );
+
+			GM.#ctx.globalAlpha = .2;
 			GM.#ctx.beginPath();
-				GM.#ctx.arc( z.x, z.y, GM.#zombieRadius, 0, 2 * Math.PI );
+				GM.#ctx.arc( z.x, z.y, r * ( z.hp / z.hpMax ), 0, 2 * Math.PI );
 			GM.#ctx.fill();
+
+			GM.#ctx.lineWidth = 2;
+			GM.#ctx.globalAlpha = 1;
+			GM.#ctx.beginPath();
+				GM.#ctx.arc( z.x, z.y, r, 0, 2 * Math.PI );
+			GM.#ctx.stroke();
 		} );
 	}
 }
