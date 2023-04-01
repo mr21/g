@@ -14,6 +14,7 @@ class GM {
 
 	// .........................................................................
 	static #audioCtx = null;
+	static #audioGain = null;
 	static #buffers = {
 		zombieKilled: null,
 		bulletShot: null,
@@ -55,6 +56,8 @@ class GM {
 			cnv.onpointerup = GM.#onpointerup;
 			cnv.oncontextmenu = () => false;
 			GM.#audioCtx = new AudioContext();
+			GM.#audioGain = GM.#audioCtx.createGain();
+			GM.#audioGain.connect( GM.#audioCtx.destination );
 			Promise.all( [
 				GM.#loadBuffer( "killed.wav" ),
 				GM.#loadBuffer( "laser-shot.wav" ),
@@ -79,6 +82,9 @@ class GM {
 	}
 	static $stop() {
 		GM.#continue = false;
+	}
+	static $volume( v ) {
+		GM.#audioGain.gain.value = v;
 	}
 
 	// .........................................................................
@@ -108,7 +114,7 @@ class GM {
 		const absn = GM.#audioCtx.createBufferSource();
 
 		absn.buffer = GM.#buffers[ snd ];
-		absn.connect( GM.#audioCtx.destination );
+		absn.connect( GM.#audioGain );
 		absn.start();
 	}
 

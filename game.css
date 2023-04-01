@@ -19,7 +19,7 @@ body {
 	font-family: sans-serif;
 }
 #app-sideMenu {
-	width: 100px;
+	width: 120px;
 	padding: 16px;
 	border-radius: 4px;
 	background-color: #fff1;
@@ -27,12 +27,19 @@ body {
 .app-sideMenu-row {
 	display: flex;
 	gap: 1ch;
-	align-items: baseline;
+	align-items: center;
+}
+#app-sideMenu span:first-child {
+	margin-right: auto;
 }
 #app-sideMenu code {
-	margin-left: auto;
 	font-size: 18px;
 	font-weight: bold;
+}
+#app-sideMenu input[ type="range" ] {
+	width: 50px;
+	margin: 0;
+	margin-right: -2px;
 }
 #app-canvasWrap {
 	position: relative;
