@@ -13,7 +13,7 @@
 		<div class="app-sideMenu-row"><span>time</span><code id="app-stats-time">0</code></div>
 		<div class="app-sideMenu-row"><span>waves</span><code id="app-stats-waves">0</code></div>
 		<div class="app-sideMenu-row"><span>kills</span><code id="app-stats-kills">0</code></div>
-		<div class="app-sideMenu-row"><span>sound</span><input id="app-gain" type="range" min="0" max="1" step=".1" value=".5" /></div>
+		<div class="app-sideMenu-row"><span>sound</span><input id="app-gain" type="range" min="0" max="1" step=".1" value=".1" /></div>
 	</div>
 	<div id="app-canvasWrap">
 		<canvas id="app-canvas"></canvas>
@@ -48,7 +48,7 @@ GM.$ongameover = () => app.dataset.status = "ready";
 GM.$init( cnv, 620, 620 )
 	.then( () => {
 		app.dataset.status = "ready";
-		GM.$volume( .5 );
+		GM.$volume( .1 );
 	} );
 
 </script>

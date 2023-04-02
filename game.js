@@ -16,8 +16,8 @@ class GM {
 	static #audioCtx = null;
 	static #audioGain = null;
 	static #buffers = {
-		zombieKilled: null,
-		bulletShot: null,
+		$zombieKilled: null,
+		$bulletShot: null,
 	};
 
 	// .........................................................................
@@ -62,8 +62,8 @@ class GM {
 				GM.#loadBuffer( "killed.wav" ),
 				GM.#loadBuffer( "laser-shot.wav" ),
 			] ).then( buffers => {
-				GM.#buffers.zombieKilled = buffers[ 0 ];
-				GM.#buffers.bulletShot = buffers[ 1 ];
+				GM.#buffers.$zombieKilled = buffers[ 0 ];
+				GM.#buffers.$bulletShot = buffers[ 1 ];
 				res();
 			} );
 		} );
@@ -110,10 +110,10 @@ class GM {
 			.then( res => res.arrayBuffer() )
 			.then( arr => GM.#audioCtx.decodeAudioData( arr ) );
 	}
-	static #playSound( snd ) {
+	static #playSound( buf ) {
 		const absn = GM.#audioCtx.createBufferSource();
 
-		absn.buffer = GM.#buffers[ snd ];
+		absn.buffer = buf;
 		absn.connect( GM.#audioGain );
 		absn.start();
 	}
@@ -133,14 +133,6 @@ class GM {
 	}
 
 	// .........................................................................
-	static #utilGetRad( x, y, tarX, tarY ) {
-		const xx = tarX - x;
-		const yy = tarY - y;
-
-		return Math.atan2( xx, -yy );
-	}
-
-	// .........................................................................
 	static #update() {
 		GM.#updateTurretShot();
 		GM.#updateBullets();
@@ -151,18 +143,20 @@ class GM {
 		if ( GM.#mouseLeft && GM.#time - GM.#turretLastShot >= GM.#turretReloadTime ) {
 			GM.#turretLastShot = GM.#time;
 			GM.#bullets.push( {
-				x: Math.sin( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
+				x: +Math.sin( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
 				y: -Math.cos( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
+				vx: +Math.sin( GM.#mouseRadian ) * GM.#bulletSpeed,
+				vy: -Math.cos( GM.#mouseRadian ) * GM.#bulletSpeed,
 				rad: GM.#mouseRadian,
 				time: GM.#time,
 			} );
-			GM.#playSound( "bulletShot" );
+			GM.#playSound( GM.#buffers.$bulletShot );
 		}
 	}
 	static #updateBullets() {
 		GM.#bullets = GM.#bullets.filter( b => {
-			b.x += Math.sin( b.rad ) * GM.#bulletSpeed * GM.#ftime;
-			b.y -= Math.cos( b.rad ) * GM.#bulletSpeed * GM.#ftime;
+			b.x += b.vx * GM.#ftime;
+			b.y += b.vy * GM.#ftime;
 			return GM.#time - b.time < GM.#bulletDuration;
 		} );
 	}
@@ -173,11 +167,15 @@ class GM {
 				const coll = dist <= ( GM.#zombieRadius * z.hpMax / 100 ) ** 2;
 
 				if ( coll ) {
-					z.hp -= 25;
-					GM.#playSound( "zombieKilled" );
+					z.vx += b.vx / .5;
+					z.vy += b.vy / .5;
+					if ( ( z.hp -= 25 ) <= 0 ) {
+						GM.#playSound( GM.#buffers.$zombieKilled );
+					}
 				}
 				return coll;
 			} );
+
 			return !z;
 		} );
 	}
@@ -187,9 +185,13 @@ class GM {
 				GM.$onkill( ++GM.#nbKills );
 			} else {
 				const zrad = GM.#utilGetRad( z.x, z.y, 0, 0 );
+				const dirx = +Math.sin( zrad ) * GM.#zombieSpeed;
+				const diry = -Math.cos( zrad ) * GM.#zombieSpeed;
 
-				z.x += Math.sin( zrad ) * GM.#zombieSpeed * GM.#ftime;
-				z.y -= Math.cos( zrad ) * GM.#zombieSpeed * GM.#ftime;
+				z.vx += ( dirx - z.vx ) / 10;
+				z.vy += ( diry - z.vy ) / 10;
+				z.x += z.vx * GM.#ftime;
+				z.y += z.vy * GM.#ftime;
 				if ( Math.abs( z.x ) ** 2 + Math.abs( z.y ) ** 2 < 10 ) {
 					GM.$stop();
 					GM.$ongameover();
@@ -205,13 +207,15 @@ class GM {
 		for ( let i = 0; i < GM.#zombiesPerWave; ++i ) {
 			const rad = Math.random() * 2 * Math.PI;
 			const dist = Math.random() * 300;
-			const hpMax = 25 + Math.random() * 200;
+			const hpMax = 100 + Math.random() * 100;
 
 			GM.#zombies.push( {
-				x: Math.sin( rad ) * ( 400 + dist ),
-				y: Math.cos( rad ) * ( 400 + dist ),
-				hp: hpMax,
 				hpMax,
+				hp: hpMax,
+				x: Math.sin( rad ) * ( 200 + dist ),
+				y: Math.cos( rad ) * ( 200 + dist ),
+				vx: 0,
+				vy: 0,
 			} );
 		}
 		GM.#zombiesPerWave *= 1.25;
@@ -265,5 +269,13 @@ class GM {
 				GM.#ctx.arc( z.x, z.y, r, 0, 2 * Math.PI );
 			GM.#ctx.stroke();
 		} );
+	}
+
+	// .........................................................................
+	static #utilGetRad( x, y, tarX, tarY ) {
+		const xx = tarX - x;
+		const yy = tarY - y;
+
+		return Math.atan2( xx, -yy );
 	}
 }
