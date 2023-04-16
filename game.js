@@ -39,8 +39,8 @@ class GM {
 
 	// .........................................................................
 	static #zombies = [];
-	static #zombieSpeed = 50;
-	static #zombieRadius = 16;
+	static #zombieSpeed = 25;
+	static #zombieRadius = 10;
 	static #zombiesPerWave = 0;
 	static #zombiesPerWaveInit = 10;
 
@@ -89,7 +89,10 @@ class GM {
 
 	// .........................................................................
 	static #onpointermove( e ) {
-		GM.#mouseRadian = GM.#utilGetRad( GM.#w / 2, GM.#h / 2, e.offsetX, e.offsetY );
+		const x = e.offsetX - GM.#w / 2;
+		const y = e.offsetY - GM.#h / 2;
+
+		GM.#mouseRadian = Math.atan2( y, x ) + Math.PI / 2;
 	}
 	static #onpointerdown( e ) {
 		if ( e.button === 0 ) {
@@ -134,92 +137,156 @@ class GM {
 
 	// .........................................................................
 	static #update() {
+		if ( GM.#zombies.length === 0 ) {
+			GM.#newWaveZombies();
+		}
 		GM.#updateTurretShot();
-		GM.#updateBullets();
+		GM.#moveBullets();
 		GM.#collisionBullets();
-		GM.#updateZombies();
+		GM.#rmDeadZombies();
+		GM.#moveZombies();
+		GM.#collisionZombies();
+		GM.#checkGameover();
+	}
+	static #checkGameover() {
+		if ( GM.#zombies.find( z => z.pos.lengthSq() < 10 ) ) {
+			GM.$stop();
+			GM.$ongameover();
+		}
 	}
 	static #updateTurretShot() {
 		if ( GM.#mouseLeft && GM.#time - GM.#turretLastShot >= GM.#turretReloadTime ) {
 			GM.#turretLastShot = GM.#time;
 			GM.#bullets.push( {
-				x: +Math.sin( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
-				y: -Math.cos( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
-				vx: +Math.sin( GM.#mouseRadian ) * GM.#bulletSpeed,
-				vy: -Math.cos( GM.#mouseRadian ) * GM.#bulletSpeed,
-				rad: GM.#mouseRadian,
 				time: GM.#time,
+				pos: new Vec(
+					+Math.sin( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
+					-Math.cos( GM.#mouseRadian ) * ( GM.#turretRadius + 8 ),
+				),
+				vel: new Vec(
+					+Math.sin( GM.#mouseRadian ) * GM.#bulletSpeed,
+					-Math.cos( GM.#mouseRadian ) * GM.#bulletSpeed,
+				),
 			} );
 			GM.#playSound( GM.#buffers.$bulletShot );
 		}
 	}
-	static #updateBullets() {
+	static #moveBullets() {
 		GM.#bullets = GM.#bullets.filter( b => {
-			b.x += b.vx * GM.#ftime;
-			b.y += b.vy * GM.#ftime;
+			b.pos.add( Vec.mulScalar( b.vel, GM.#ftime ) );
 			return GM.#time - b.time < GM.#bulletDuration;
 		} );
 	}
 	static #collisionBullets() {
 		GM.#bullets = GM.#bullets.filter( b => {
-			const z = GM.#zombies.find( z => {
-				const dist = Math.abs( b.x - z.x ) ** 2 + Math.abs( b.y - z.y ) ** 2;
-				const coll = dist <= ( GM.#zombieRadius * z.hpMax / 100 ) ** 2;
+			const z = GM.#zombies.find( z => GM.#collisionBulletVsZombieTest( b, z ) );
 
-				if ( coll ) {
-					z.vx += b.vx / .5;
-					z.vy += b.vy / .5;
-					if ( ( z.hp -= 25 ) <= 0 ) {
-						GM.#playSound( GM.#buffers.$zombieKilled );
-					}
-				}
-				return coll;
-			} );
-
+			if ( z ) {
+				GM.#collisionBulletVsZombieUpdate( b, z );
+			}
 			return !z;
 		} );
 	}
-	static #updateZombies() {
-		GM.#zombies = GM.#zombies.filter( z => {
-			if ( z.hp <= 0 ) {
-				GM.$onkill( ++GM.#nbKills );
-			} else {
-				const zrad = GM.#utilGetRad( z.x, z.y, 0, 0 );
-				const dirx = +Math.sin( zrad ) * GM.#zombieSpeed;
-				const diry = -Math.cos( zrad ) * GM.#zombieSpeed;
-
-				z.vx += ( dirx - z.vx ) / 10;
-				z.vy += ( diry - z.vy ) / 10;
-				z.x += z.vx * GM.#ftime;
-				z.y += z.vy * GM.#ftime;
-				if ( Math.abs( z.x ) ** 2 + Math.abs( z.y ) ** 2 < 10 ) {
-					GM.$stop();
-					GM.$ongameover();
-				}
-			}
-			return z.hp > 0;
-		} );
-		if ( GM.#zombies.length === 0 ) {
-			GM.#newWaveZombies();
+	static #collisionBulletVsZombieTest( b, z ) {
+		return b.pos.lengthSqWith( z.pos ) <= ( GM.#zombieRadius * z.hpMax / 100 ) ** 2;
+	}
+	static #collisionBulletVsZombieUpdate( b, z ) {
+		z.vel.add( Vec.mulScalar( b.vel, GM.#easeInCirc( 1 - ( z.hpMax - 100 ) / 200 ) ) );
+		if ( ( z.hp -= 75 ) <= 0 ) {
+			GM.#playSound( GM.#buffers.$zombieKilled );
 		}
+	}
+	static #collisionZombies() {
+		GM.#zombies.forEach( z => {
+			const z2 = GM.#zombies.find( z2 =>
+				z2 !== z &&
+				z2.pos.lengthSqWith( z.pos ) <=
+				(
+					GM.#calcZombieRadius( z2 ) +
+					GM.#calcZombieRadius( z )
+				) ** 2 );
+
+			if ( z2 ) {
+				GM.#zombieCollisionResponce( z, z2 );
+			}
+		} );
+	}
+	static #zombieCollisionResponce( z, z2 ) {
+		const unitNormal = ( new Vec( z.pos ) ).sub( z2.pos ).normalize();
+		const unitTangent = Vec.tangent( unitNormal );
+
+		const a = z.vel;
+		const b = z2.vel;
+		const ar = GM.#calcZombieRadius( z );
+		const br = GM.#calcZombieRadius( z2 );
+
+		const correction = Vec.mulScalar( unitNormal, ar + br );
+		const newV = Vec.add( z2.pos, correction );
+		z.pos = newV;
+
+		const a_n = a.dot(unitNormal);
+		const b_n = b.dot(unitNormal);
+		const a_t = a.dot(unitTangent);
+		const b_t = b.dot(unitTangent);
+
+		const a_n_final = ( a_n * ( ar - br ) + 2 * br * b_n ) / ( ar + br );
+		const b_n_final = ( b_n * ( br - ar ) + 2 * ar * a_n ) / ( ar + br );
+
+		const a_n_after = Vec.mulScalar(unitNormal, a_n_final);
+		const b_n_after = Vec.mulScalar(unitNormal, b_n_final);
+		const a_t_after = Vec.mulScalar(unitTangent, a_t);
+		const b_t_after = Vec.mulScalar(unitTangent, b_t);
+
+		const a_after = Vec.add(a_n_after, a_t_after);
+		const b_after = Vec.add(b_n_after, b_t_after);
+
+		z.rel = a_after;
+		z2.rel = b_after;
+	}
+	static #rmDeadZombies() {
+		const newZombies = GM.#zombies.filter( z => z.hp > 0 );
+		const diff = GM.#zombies.length - newZombies.length;
+
+		GM.#zombies = newZombies;
+		if ( diff > 0 ) {
+			GM.#nbKills += diff;
+			GM.$onkill( GM.#nbKills );
+		}
+	}
+	static #moveZombies() {
+		GM.#zombies.forEach( z => {
+			const dir = Vec.normalize( z.pos ).mulScalar( -GM.#zombieSpeed );
+
+			z.vel.add( dir.sub( z.vel ).mulScalar( .1 ) );
+			z.pos.add( Vec.mulScalar( z.vel, GM.#ftime ) );
+		} );
 	}
 	static #newWaveZombies() {
 		for ( let i = 0; i < GM.#zombiesPerWave; ++i ) {
 			const rad = Math.random() * 2 * Math.PI;
 			const dist = Math.random() * 300;
-			const hpMax = 100 + Math.random() * 100;
+			const hpMax = 100 + Math.random() * 200;
 
 			GM.#zombies.push( {
 				hpMax,
 				hp: hpMax,
-				x: Math.sin( rad ) * ( 200 + dist ),
-				y: Math.cos( rad ) * ( 200 + dist ),
-				vx: 0,
-				vy: 0,
+				vel: new Vec( 0, 0 ),
+				pos: new Vec(
+					Math.sin( rad ) * ( 200 + dist ),
+					Math.cos( rad ) * ( 200 + dist ),
+				),
 			} );
 		}
 		GM.#zombiesPerWave *= 1.25;
 		GM.$onwave( ++GM.#currWave );
+	}
+
+	// .........................................................................
+	static #calcZombieRadius( z ) {
+		return GM.#zombieRadius * ( z.hpMax / 100 );
+	}
+	static #easeInCirc( x ) {
+		return 1 - Math.sqrt( 1 - Math.pow( x, 2 ) );
 	}
 
 	// .........................................................................
@@ -237,7 +304,7 @@ class GM {
 		GM.#ctx.strokeStyle = "#ffa";
 		GM.#bullets.forEach( b => {
 			GM.#ctx.beginPath();
-				GM.#ctx.arc( b.x, b.y, 3, 0, 2 * Math.PI );
+				GM.#ctx.arc( b.pos.x, b.pos.y, 3, 0, 2 * Math.PI );
 			GM.#ctx.fill();
 		} );
 	}
@@ -256,26 +323,91 @@ class GM {
 		GM.#ctx.fillStyle =
 		GM.#ctx.strokeStyle = "green";
 		GM.#zombies.forEach( z => {
-			const r = GM.#zombieRadius * ( z.hpMax / 100 );
+			const r = GM.#calcZombieRadius( z );
 
 			GM.#ctx.globalAlpha = .2;
 			GM.#ctx.beginPath();
-				GM.#ctx.arc( z.x, z.y, r * ( z.hp / z.hpMax ), 0, 2 * Math.PI );
+				GM.#ctx.arc( z.pos.x, z.pos.y, r * ( z.hp / z.hpMax ), 0, 2 * Math.PI );
 			GM.#ctx.fill();
 
 			GM.#ctx.lineWidth = 2;
 			GM.#ctx.globalAlpha = 1;
 			GM.#ctx.beginPath();
-				GM.#ctx.arc( z.x, z.y, r, 0, 2 * Math.PI );
+				GM.#ctx.arc( z.pos.x, z.pos.y, r, 0, 2 * Math.PI );
 			GM.#ctx.stroke();
 		} );
 	}
+}
+
+// .............................................................................
+class Vec {
+	x = 0;
+	y = 0;
+
+	constructor( x, y ) {
+		this.set( x, y );
+	}
 
 	// .........................................................................
-	static #utilGetRad( x, y, tarX, tarY ) {
-		const xx = tarX - x;
-		const yy = tarY - y;
+	static normalize( v ) {
+		return ( new Vec( v ) ).normalize();
+	}
+	static tangent( v ) {
+		return new Vec( -this.y, this.x );
+	}
+	static add( v, v2 ) {
+		return ( new Vec( v ) ).add( v2 );
+	}
+	static mulScalar( v, v2 ) {
+		return ( new Vec( v ) ).mulScalar( v2 );
+	}
 
-		return Math.atan2( xx, -yy );
+	// .........................................................................
+	set( x, y ) {
+		this.x = y !== undefined ? x : x.x;
+		this.y = y !== undefined ? y : x.y;
+		return this;
+	}
+	dot( v2 ) {
+		return this.x * v2.x + this.y * v2.y;
+	}
+	angle() {
+		return Math.atan2( this.y, this.x ) + Math.PI / 2;
+	}
+	length() {
+		return Math.sqrt( this.lengthSq() );
+	}
+	lengthSq() {
+		return this.x ** 2 + this.y ** 2;
+	}
+	lengthSqWith( v ) {
+		return ( this.x - v.x ) ** 2 + ( this.y - v.y ) ** 2;
+	}
+	normalize() {
+		const len = this.length();
+
+		this.x /= len;
+		this.y /= len;
+		return this;
+	}
+	add( v2 ) {
+		this.x += v2.x;
+		this.y += v2.y;
+		return this;
+	}
+	sub( v2 ) {
+		this.x -= v2.x;
+		this.y -= v2.y;
+		return this;
+	}
+	addScalar( n ) {
+		this.x += n;
+		this.y += n;
+		return this;
+	}
+	mulScalar( n ) {
+		this.x *= n;
+		this.y *= n;
+		return this;
 	}
 }
