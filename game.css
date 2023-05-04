@@ -47,25 +47,29 @@ body {
 #app-canvas {
 	position: relative;
 	border-radius: 6px;
+	outline: 0;
 	background-color: #222;
 }
-#app-canvasMenu {
+
+.app-page {
 	position: absolute;
 	inset: 0;
-	display: flex;
+	display: none;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
 	font-size: 18px;
 }
-#app-canvasMenu button {
+.app-page button {
 	border: 0;
 	padding: .6em 1em;
 	border-radius: 6px;
 	font: inherit;
 	cursor: pointer;
 }
-#app[ data-status="playing" ] #app-canvasMenu {
-	display: none;
+#app[ data-status="loading" ] .app-page[ data-type="loading" ],
+#app[ data-status="ready" ] .app-page[ data-type="start" ],
+#app[ data-status="pause" ] .app-page[ data-type="pause" ] {
+	display: flex;
 }

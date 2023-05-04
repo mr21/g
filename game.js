@@ -6,9 +6,10 @@ class GM {
 	static #cnv = null;
 	static #ctx = null;
 	static #time = 0;
-	static #stime = 0;
-	static #ftime = 0;
-	static #continue = false;
+	static #pauseTime = 0;
+	static #startTime = 0;
+	static #frameTime = 0;
+	static #playing = false;
 	static #mouseLeft = false;
 	static #mouseRadian = 0;
 
@@ -21,6 +22,7 @@ class GM {
 	};
 
 	// .........................................................................
+	static $onpause = () => {};
 	static $ontime = () => {};
 	static $onkill = () => {};
 	static $ongameover = () => {};
@@ -51,6 +53,7 @@ class GM {
 			GM.#cnv.width = GM.#w = w;
 			GM.#cnv.height = GM.#h = h;
 			GM.#ctx = cnv.getContext( "2d" );
+			cnv.onblur = GM.$pause;
 			cnv.onpointermove = GM.#onpointermove;
 			cnv.onpointerdown = GM.#onpointerdown;
 			cnv.onpointerup = GM.#onpointerup;
@@ -76,12 +79,27 @@ class GM {
 		GM.#zombies = [];
 		GM.#bullets = [];
 		GM.#time =
-		GM.#stime = Date.now() / 1000;
-		GM.#continue = true;
+		GM.#startTime = Date.now() / 1000;
+		GM.#playing = true;
+		GM.#cnv.focus();
 		GM.#frame();
 	}
+	static $pause() {
+		if ( GM.#playing ) {
+			GM.#playing = false;
+			GM.#pauseTime = GM.#time;
+			GM.$onpause();
+		}
+	}
 	static $stop() {
-		GM.#continue = false;
+		GM.#playing = false;
+	}
+	static $continue() {
+		GM.#time = Date.now() / 1000;
+		GM.#startTime += GM.#time - GM.#pauseTime;
+		GM.#playing = true;
+		GM.#cnv.focus();
+		GM.#frame();
 	}
 	static $volume( v ) {
 		GM.#audioGain.gain.value = v;
@@ -125,12 +143,12 @@ class GM {
 	static #frame() {
 		const time = Date.now() / 1000;
 
-		GM.#ftime = time - GM.#time;
+		GM.#frameTime = time - GM.#time;
 		GM.#update();
 		GM.#draw();
-		GM.$ontime( time - GM.#stime );
+		GM.$ontime( time - GM.#startTime );
 		GM.#time = time;
-		if ( GM.#continue ) {
+		if ( GM.#playing ) {
 			requestAnimationFrame( GM.#frame );
 		}
 	}
@@ -173,7 +191,7 @@ class GM {
 	}
 	static #moveBullets() {
 		GM.#bullets = GM.#bullets.filter( b => {
-			b.pos.add( Vec.mulScalar( b.vel, GM.#ftime ) );
+			b.pos.add( Vec.mulScalar( b.vel, GM.#frameTime ) );
 			return GM.#time - b.time < GM.#bulletDuration;
 		} );
 	}
@@ -198,18 +216,20 @@ class GM {
 	}
 	static #collisionZombies() {
 		GM.#zombies.forEach( z => {
-			const z2 = GM.#zombies.find( z2 =>
-				z2 !== z &&
-				z2.pos.lengthSqWith( z.pos ) <=
-				(
-					GM.#calcZombieRadius( z2 ) +
-					GM.#calcZombieRadius( z )
-				) ** 2 );
+			const z2 = GM.#zombies.find( z2 => GM.#collisionZombieVsZombieTest( z, z2 ) );
 
 			if ( z2 ) {
 				GM.#zombieCollisionResponce( z, z2 );
 			}
 		} );
+	}
+	static #collisionZombieVsZombieTest( z, z2 ) {
+		return z !== z2 &&
+			z.pos.lengthSqWith( z2.pos ) <=
+			(
+				GM.#calcZombieRadius( z2 ) +
+				GM.#calcZombieRadius( z )
+			) ** 2;
 	}
 	static #zombieCollisionResponce( z, z2 ) {
 		const unitNormal = ( new Vec( z.pos ) ).sub( z2.pos ).normalize();
@@ -224,21 +244,21 @@ class GM {
 		const newV = Vec.add( z2.pos, correction );
 		z.pos = newV;
 
-		const a_n = a.dot(unitNormal);
-		const b_n = b.dot(unitNormal);
-		const a_t = a.dot(unitTangent);
-		const b_t = b.dot(unitTangent);
+		const a_n = a.dot( unitNormal );
+		const b_n = b.dot( unitNormal );
+		const a_t = a.dot( unitTangent );
+		const b_t = b.dot( unitTangent );
 
 		const a_n_final = ( a_n * ( ar - br ) + 2 * br * b_n ) / ( ar + br );
 		const b_n_final = ( b_n * ( br - ar ) + 2 * ar * a_n ) / ( ar + br );
 
-		const a_n_after = Vec.mulScalar(unitNormal, a_n_final);
-		const b_n_after = Vec.mulScalar(unitNormal, b_n_final);
-		const a_t_after = Vec.mulScalar(unitTangent, a_t);
-		const b_t_after = Vec.mulScalar(unitTangent, b_t);
+		const a_n_after = Vec.mulScalar( unitNormal, a_n_final );
+		const b_n_after = Vec.mulScalar( unitNormal, b_n_final );
+		const a_t_after = Vec.mulScalar( unitTangent, a_t );
+		const b_t_after = Vec.mulScalar( unitTangent, b_t );
 
-		const a_after = Vec.add(a_n_after, a_t_after);
-		const b_after = Vec.add(b_n_after, b_t_after);
+		const a_after = Vec.add( a_n_after, a_t_after );
+		const b_after = Vec.add( b_n_after, b_t_after );
 
 		z.rel = a_after;
 		z2.rel = b_after;
@@ -258,7 +278,7 @@ class GM {
 			const dir = Vec.normalize( z.pos ).mulScalar( -GM.#zombieSpeed );
 
 			z.vel.add( dir.sub( z.vel ).mulScalar( .1 ) );
-			z.pos.add( Vec.mulScalar( z.vel, GM.#ftime ) );
+			z.pos.add( Vec.mulScalar( z.vel, GM.#frameTime ) );
 		} );
 	}
 	static #newWaveZombies() {
