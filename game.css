@@ -12,12 +12,15 @@ body {
 	user-select: none;
 }
 
+/* .......................................................................... */
 #app {
 	display: flex;
 	align-items: start;
 	gap: 20px;
 	font-family: sans-serif;
 }
+
+/* .......................................................................... */
 #app-sideMenu {
 	width: 120px;
 	padding: 16px;
@@ -41,6 +44,8 @@ body {
 	margin: 0;
 	margin-right: -2px;
 }
+
+/* .......................................................................... */
 #app-canvasWrap {
 	position: relative;
 }
@@ -51,6 +56,7 @@ body {
 	background-color: #222;
 }
 
+/* .......................................................................... */
 .app-page {
 	position: absolute;
 	inset: 0;
@@ -72,4 +78,10 @@ body {
 #app[ data-status="ready" ] .app-page[ data-type="start" ],
 #app[ data-status="pause" ] .app-page[ data-type="pause" ] {
 	display: flex;
+}
+
+#app-startWave {
+	display: flex;
+	align-items: center;
+	gap: 1ch;
 }

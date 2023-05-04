@@ -23,6 +23,7 @@ class GM {
 
 	// .........................................................................
 	static $onpause = () => {};
+	static $onwave = () => {};
 	static $ontime = () => {};
 	static $onkill = () => {};
 	static $ongameover = () => {};
@@ -71,11 +72,14 @@ class GM {
 			} );
 		} );
 	}
-	static $start() {
+	static $start( { wave } ) {
 		GM.$ontime( 0 );
-		GM.$onwave( GM.#currWave = 0 );
+		GM.$onwave( GM.#currWave = wave );
 		GM.$onkill( GM.#nbKills = 0 );
 		GM.#zombiesPerWave = GM.#zombiesPerWaveInit;
+		for ( let i = 0; i < wave; ++i ) {
+			GM.#zombiesPerWave *= 1.25;
+		}
 		GM.#zombies = [];
 		GM.#bullets = [];
 		GM.#time =
@@ -167,7 +171,7 @@ class GM {
 		GM.#checkGameover();
 	}
 	static #checkGameover() {
-		if ( GM.#zombies.find( z => z.pos.lengthSq() < 10 ) ) {
+		if ( GM.#zombies.find( z => z.pos.lengthSq() < ( GM.#turretRadius * 2 ) ** 2 ) ) {
 			GM.$stop();
 			GM.$ongameover();
 		}

@@ -22,6 +22,11 @@
 		</div>
 		<div class="app-page" data-type="start">
 			<button id="app-startBtn" type="button">Start</button>
+			<div id="app-startWave">
+				<span>wave:</span>
+				<b>1</b>
+				<input type="range" min="0" max="9" step="1" value="0" />
+			</div>
 		</div>
 		<div class="app-page" data-type="pause">
 			<button id="app-continueBtn" type="button">Continue</button>
@@ -41,11 +46,13 @@ const continueBtn = document.querySelector( "#app-continueBtn" );
 const nbKills = document.querySelector( "#app-stats-kills" );
 const nbWaves = document.querySelector( "#app-stats-waves" );
 const time = document.querySelector( "#app-stats-time" );
+const startWave = document.querySelector( "#app-startWave b" );
+const startWaveInput = document.querySelector( "#app-startWave input" );
 
 gain.oninput = () => GM.$volume( gain.value );
 startBtn.onclick = () => {
 	app.dataset.status = "playing";
-	GM.$start();
+	GM.$start( { wave: +startWave.textContent - 1 } );
 };
 continueBtn.onclick = () => {
 	app.dataset.status = "playing";
@@ -56,6 +63,10 @@ document.body.onkeydown = e => {
 	if ( e.key === "Escape" ) {
 		GM.$pause();
 	}
+};
+
+startWaveInput.oninput = () => {
+	startWave.textContent = +startWaveInput.value + 1;
 };
 
 GM.$onkill = n => nbKills.textContent = n;
